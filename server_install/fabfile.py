@@ -17,8 +17,6 @@ from fabric.contrib.files import uncomment
 from fabric.contrib.files import comment
 from fabric.contrib.files import contains
 
-# TODO: добавить FTP
-
 
 SERVER_USER = 'user'
 
@@ -112,6 +110,56 @@ def server_install():
 
 
 @task
+def docker_server_install():
+    """
+    Настройка сервера под Docker
+    """
+    run('apt-get update -y')
+    run('apt-get -y install locales')
+    localesconfig()
+
+    run('apt-get -y install sudo')
+    run('apt-get -y install nginx')
+    run('apt-get -y install git')
+    run('apt-get -y install htop')
+
+    # Docker
+    run('echo "deb http://http.debian.net/debian wheezy-backports main" >> '
+        '/etc/apt/sources.list.d/backports.list')
+    run('apt-get update -y')
+    with warn_only():
+        run('apt-get purge lxc-docker*')
+        run('apt-get purge docker.io*')
+    run('apt-get update -y')
+    run('apt-get install -y curl apt-transport-https ca-certificates aufs-tools')
+    run('apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 '
+        '--recv-keys 58118E89F3A912897C070ADBF76221572C52609D')
+    run('echo "deb https://apt.dockerproject.org/repo debian-jessie main" > '
+        '/etc/apt/sources.list.d/docker.list')
+    run('apt-get update -y')
+    run('apt-get install -y docker-engine')
+
+    with warn_only():
+        run('addgroup user')
+        create_user(
+            username=SERVER_USER,
+            groups=['docker', 'sudo'],
+            group='user',
+            password=True,
+            homeroot='/home'
+        )
+
+    # Docker-compose
+    run('curl -L https://github.com/docker/compose/releases/download/1.8.1/docker-compose-Linux-x86_64'
+        ' > /tmp/docker-compose')
+    run('chmod +x /tmp/docker-compose')
+    run('mv /tmp/docker-compose /usr/local/bin')
+
+    # Настройки безопасности
+    safety()
+
+
+@task
 def mysql():
     """
     Установка MySQL
@@ -137,6 +185,18 @@ def mariadb():
 
     mysqlconfig()
     createdb(env.project_name)
+
+
+@task
+def postgres(version='9.5'):
+    """
+    Установка PostgreSQL
+    TODO: проверить и дописать создание конфига
+    """
+    run('echo "deb http://apt.postgresql.org/pub/repos/apt/ trusty-pgdg main 9.5" >> /etc/apt/sources.list.d/postgresql.list')
+    run('wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -')
+    run('apt-get update')
+    run('apt-get install postgresql-9.5')
 
 
 @task
@@ -180,9 +240,13 @@ def redis():
     )
     run('mkdir -p /etc/redis')
     with cd('/etc/redis'):
-        upload_template('conf/redis.conf', 'redis.conf', {
-            'password': env.redis_password,
-        }, backup=False)
+        # TODO: почему то не работает строчка 397 в файле redis.conf
+        # >>> ValueError: unsupported format character ')' (0x29) at index 6559
+        # upload_template('conf/redis.conf', 'redis.conf', {
+        #     'password': env.redis_password,
+        # }, backup=False)
+        upload_template('conf/redis.conf', 'redis.conf', {}, backup=False)
+        run('echo "requirepass %s" >> redis.conf' % env.redis_password)
 
     lines = [
         'net.ipv4.tcp_tw_reuse=1',
@@ -202,6 +266,13 @@ def ftp():
     upload_template('conf/vsftpd.conf', '/etc/vsftpd.conf', backup=False)
     comment('/etc/pam.d/vsftpd', 'auth  required    pam_shells.so', backup=False)
     run('service vsftpd restart')
+
+
+@task
+def deploy_project(root):
+    """
+    Загрузка проекта
+    """
 
 
 @task(default=True)

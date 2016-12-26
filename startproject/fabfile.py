@@ -54,7 +54,7 @@ def create_project():
 
     with lcd(PROJECTS_ROOT):
         # Создаем директорию с root проектом
-        local('mkdir -p %s' % env.project_root)
+        local('mkdir -p {0}'.format(env.project_root))
 
         with lcd(env.project_root):
             # Создаем директорию с django проектом и переходим в нее
