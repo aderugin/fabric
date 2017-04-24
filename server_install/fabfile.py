@@ -149,12 +149,38 @@ def docker_server_install():
             homeroot='/home'
         )
 
-    # Docker-compose
-    run('curl -L https://github.com/docker/compose/releases/download/1.8.1/docker-compose-Linux-x86_64'
-        ' > /tmp/docker-compose')
-    run('chmod +x /tmp/docker-compose')
-    run('mv /tmp/docker-compose /usr/local/bin')
+    # Docker compose
+    docker_compose_install()
+    # Настройки безопасности
+    safety()
 
+
+@task
+def base_server_install():
+    """
+    Базовые настройки сервера
+    """
+    run('apt-get update -y')
+    run('apt-get -y install locales')
+    localesconfig()
+
+    run('apt-get -y install sudo')
+    run('apt-get -y install nginx')
+    run('apt-get -y install git')
+    run('apt-get -y install htop')
+
+    with warn_only():
+        run('addgroup user')
+        create_user(
+            username=SERVER_USER,
+            groups=['docker', 'sudo'],
+            group='user',
+            password=True,
+            homeroot='/home'
+        )
+
+    # Docker compose
+    docker_compose_install()
     # Настройки безопасности
     safety()
 
@@ -341,6 +367,16 @@ def mysqlconfig():
         'set character_set_results=\'utf8\'; set character_set_server=\'utf8\'; '
         'set collation_database=\'utf8_general_ci\'; set collation_connection=\'utf8_general_ci\'; '
         'set collation_server=\'utf8_general_ci\';"')
+
+
+def docker_compose_install(version='1.11.2'):
+    """
+    Утсановка docker-compose
+    """
+    run('curl -L https://github.com/docker/compose/releases/download/%s/docker-compose-Linux-x86_64'
+        ' > /tmp/docker-compose' % version)
+    run('chmod +x /tmp/docker-compose')
+    run('mv /tmp/docker-compose /usr/local/bin')
 
 
 def nginxconfig():
